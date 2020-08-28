@@ -1,0 +1,425 @@
+<HTML>
+<HEAD>
+<TITLE>Movies v2.1</TITLE>
+<HTA:APPLICATION ID="oMovies"
+  SHOWINTASKBAR="yes"
+  SINGLEINSTANCE="yes"
+  SYSMENU="yes"
+  CONTEXTMENU="yes"
+  NAVIGABLE="no"
+  ICON="movies.ico"
+  CAPTION="yes"
+  BORDER="thick"
+  BORDERSTYLE="normal"
+  INNERBORDER="no"
+  SCROLL="no" 
+  SCROLLFLAT="yes"
+  WINDOWSTATE="maximize"
+  MAXIMIZEBUTTON="yes"
+  MINIMIZEBUTTON="yes"
+  VERSION="2.1">
+<style>  
+
+body { margin:0; padding:0; background:#FFFFFF; font-family:"Segoe UI"; font-size:11pt; font-weight:900; cursor:default }
+img  { cursor:hand; margin:6px 0 0 6px; border:solid #505050 1px; }
+li   { margin:0; padding:6px 12px; list-style: none; }
+
+.menu { margin:0; padding:0 0 0 12px; height:24px; background-color: #404040; color:#FFFFFF; }
+.menuNormal { margin:0; padding:2px 12px; text-decoration:none; line-height:2em; background-color: #404040; color:#FFFFFF; }
+.menuActive { margin:0 0 -4px 0; padding:2px 12px 8px 12px; text-decoration:none; line-height:2em; background-color: #FFFFFF; color:#404040; }
+
+#rmenu a { text-decoration:none; background-color: #FFFFFF; color:#404040; }
+
+.data { 
+  padding:3px; height:97%; 
+  overflow:auto;
+  scrollbar-face-color: #808080;
+  scrollbar-shadow-color: #FFFFFF;
+  scrollbar-highlight-color: #FFFFFF;
+  scrollbar-3dlight-color: #FFFFFF;
+  scrollbar-darkshadow-color: #FFFFFF;
+  scrollbar-track-color: #FFFFFF;
+  scrollbar-arrow-color: #000000;
+}
+
+.show {
+  z-index:1000;
+  position: absolute;
+  background-color:#FFFFFF;
+  border: 1px solid #808080;
+  padding: 3px;
+  margin: 0;
+  list-style-type: none;
+  list-style: none;
+  display: block;
+  -webkit-box-shadow: 0px 1px 3px 1px rgba(0,0,0,0.20);
+  -moz-box-shadow: 0px 1px 3px 1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 3px 1px rgba(0,0,0,0.20);
+}
+
+.hide {
+  display: none;
+}
+
+</style>
+</head>
+<body>
+<div id="menu" class="menu"></div>
+<div id="data" class="data"></div>
+
+<ul id="rmenu" class="hide">
+<li><a href="#" id="menuheader"></a></li>
+<li><a href="#" id="menuimdb">IMDB</a></li>
+<li><a href="#" id="menupreview">Preview</a></li>
+<li><a href="#" id="menudelete">Delete</a></li>
+<li><a href="#" id="menumove">Move</a></li>
+</ul>
+
+</body>
+
+<script language="javascript" type="text/javascript">
+
+// Create the Objects
+var fso = new ActiveXObject("Scripting.FileSystemObject");
+var shell = new ActiveXObject("shell.application");
+var wsh = new ActiveXObject("WScript.Shell");
+
+var regKey = "HKEY_CURRENT_USER\\SOFTWARE\\Movies\\RootFolder";
+//var rootPath = "\\\\NAS-DLINK\\Video";
+var rootPath = "";
+var rootFolder = null;
+var menu = "";
+var data = "";
+var allFolders = new Array();
+var currentPath = "";
+var allFiles = new Array();
+var currentFile = "";
+var index = 0;
+
+var iw;
+var ih;
+
+var home = "<a href='#'  name=\"menu\" class=\"menuNormal\" OnClick='ReStart()'>Home</a>";
+var menuData = "<a href='#' id=\"{0}\" name=\"menu\" class=\"menuNormal\">{1}</a>";
+var imageData = "<img src=\"{0}\" width=\"{3}\" height=\"{4}\" Title=\"{1}\" OnClick=\"PlayMovie('{2}')\"/>\n";
+
+// -------------------------------------------------------
+// Init
+// -------------------------------------------------------
+
+String.prototype.format = function() {
+  var args = arguments;
+  return this.replace(/{(\d+)}/g, function(match, number) { 
+    return typeof args[number] != 'undefined' ? args[number] : match;
+  });
+};
+
+function Init() {
+  var menunode = document.getElementById("menu");
+  if (menunode.addEventListener) {                    // For all major browsers, except IE 8 and earlier
+    menunode.addEventListener("click", GetTheFiles);
+  } else if (menunode.attachEvent) {                  // For IE 8 and earlier versions
+    menunode.attachEvent("onclick", GetTheFiles);
+  }
+
+  var datanode = document.getElementById("data");
+  if (datanode.addEventListener) {                    // For all major browsers, except IE 8 and earlier
+    datanode.addEventListener("contextmenu", ShowContextMenu);
+  } else if (datanode.attachEvent) {                  // For IE 8 and earlier versions
+    datanode.attachEvent("oncontextmenu", ShowContextMenu);
+  }
+
+  if (document.addEventListener) {                    // For all major browsers, except IE 8 and earlier
+    document.addEventListener("click", HideContextMenu);
+  } else if (document.attachEvent) {                  // For IE 8 and earlier versions
+    document.attachEvent("onclick", HideContextMenu);
+  }
+
+  GetWindowSize();
+  ShowData("Connecting...");
+  
+  try {
+    GetRootPath();
+    rootFolder = fso.GetFolder(rootPath);
+  }
+  catch(err) {
+    SelectRootFolder();
+  }
+  
+  setTimeout(function(){GetFolderNames()}, 10);
+}
+
+function ReStart() {
+
+  rootPath = ""
+  rootFolder = null;
+  
+  SelectRootFolder();
+  
+  if (rootFolder != null) {
+    setTimeout(function(){GetFolderNames()}, 10);
+  }
+}
+
+// -------------------------------------------------------
+// Get Root
+// -------------------------------------------------------
+
+function GetRootPath() {
+  try {
+    rootPath = wsh.RegRead(regKey);
+  }
+  catch(err) {
+    alert("RegRead " + err.message);
+    rootPath = "\\\\NAS-DLINK\\Video";
+    SetRootPath();
+  }
+}
+
+function SetRootPath() {
+  try  {
+    wsh.RegWrite(regKey, rootPath, "REG_SZ");
+  }
+  catch(err) {
+    alert("RegWrite " + err.message);
+  }
+}
+
+
+function SelectRootFolder() {
+  rootFolder = shell.BrowseForFolder(0, "Movies", 0x41);
+  if (rootFolder == null) {
+    ShowMenu(home);
+    ShowData("You must select a Home folder.");
+  } 
+  else {
+    try {
+      rootPath = rootFolder.Self.Path;
+      SetRootPath();
+    }
+    catch(err) {
+      alert("RegWrite " + err.message);
+    }
+  }
+}
+
+// -------------------------------------------------------
+// Get Folders
+// -------------------------------------------------------
+
+function GetFolderNames() {
+  allFolders = new Array();
+  index = 0;
+  
+  var colFolder = rootFolder.SubFolders ? rootFolder.SubFolders : rootFolder.Items();
+  var folders = new Enumerator(colFolder);
+  while (!folders.atEnd()) {
+    var folder = folders.item();
+    AddFolder(folder);
+    folders.moveNext();
+  }
+  ShowFolders();
+}
+
+function AddFolder(folder) {
+  // filter system and hidden folders
+  if ((folder.Attributes & 2) == 2 || (folder.Attributes & 4) == 4) {
+    return;
+  }
+  allFolders[index] = folder.Path;
+  index++;
+}
+
+function ShowFolders() {
+
+  allFolders.sort();
+  menu = home;
+
+  for (j = 0; j < index; j++) {
+    var path = allFolders[j];
+    var folderName = fso.GetFolder(path).Name;
+    menu += menuData.format(j, folderName);
+  }
+  ShowMenu(menu);
+  
+  var node = document.getElementById("0");
+  node.click();
+}
+
+// -------------------------------------------------------
+// Get Files
+// -------------------------------------------------------
+
+function HiLight(id) {
+  var elements = document.getElementsByName("menu");
+  for (i = 0; i < elements.length; i++) {
+    elements[i].className = "menuNormal"; 
+  }
+  document.getElementById(id).className = "menuActive";
+}
+
+function GetTheFiles(event) {
+  var targetElement = event.target || event.srcElement;
+  if (!targetElement.id || isNaN(targetElement.id)) return;
+
+  HiLight(targetElement.id);
+  
+  HideContextMenu();
+  ShowData("Reading files...");
+  currentPath = allFolders[targetElement.id];
+  setTimeout(function(){GetFileNames(currentPath)}, 100);
+}
+
+function GetFileNames(folderPath) {
+  allFiles = new Array();
+  index = 0;
+  var folder = fso.GetFolder(unescape(folderPath));
+  var files = new Enumerator(folder.files);
+  while (!files.atEnd()) {
+    var file = files.item();
+    AddFile(file);
+    files.moveNext();
+  }
+  ShowFiles()
+}
+
+function AddFile(file) {
+  var ext = fso.GetExtensionName(file.Name).toLowerCase();
+  if (ext == "avi" || ext == "mkv" || ext == "mp4" || ext == "ts" || ext == "flv") {
+    allFiles[index] = file.Path;
+    index++;
+  }
+}
+
+function ShowFiles() {
+  data = "";
+  allFiles.sort();
+  
+  // loop array
+  for (j = 0; j < allFiles.length; j++) {
+    var path = allFiles[j];
+    
+    var movieName = escape(path);
+    var title = fso.GetBaseName(path);
+    var imageName = path.substr(0, path.lastIndexOf(".")) + ".jpg";
+    
+    data += imageData.format(imageName, title, movieName, iw, ih);
+  }
+  
+  ShowData(data);
+}
+
+// -------------------------------------------------------
+// Other functions
+// -------------------------------------------------------
+
+function ShowContextMenu(event) {
+  var targetElement = event.target || event.srcElement;
+
+  if (targetElement.title) {
+    var rmenu = document.getElementById("rmenu");
+    var menuheader = document.getElementById("menuheader");
+    var menuimdb = document.getElementById("menuimdb");
+    var menupreview = document.getElementById("menupreview");
+    var menudelete = document.getElementById("menudelete");
+    var menumove = document.getElementById("menumove");
+
+    // add menu options
+    menuheader.innerHTML = targetElement.title;
+    menuheader.onclick = function(){ ShowPoster(targetElement.src); };
+    menuimdb.onclick = function(){ ShowIMDB(targetElement.title); };
+    menupreview.onclick = function(){ ShowPreview(targetElement.title); };
+    menudelete.onclick = function(){ DeleteMovie(targetElement.src); };
+    menumove.onclick = function(){ MoveMovie(targetElement.src); };
+
+    rmenu.style.left =  event.clientX;
+    rmenu.style.top = event.clientY;
+    rmenu.className = "show";  
+  }
+  return false;
+}
+    
+function HideContextMenu () {
+  var rmenu = document.getElementById("rmenu");
+  rmenu.className = "hide";  
+}
+
+function ShowIMDB(title) {
+  HideContextMenu();
+  var cmd = "http://www.imdb.com/search/title/?title=" + encodeURI(title) + "&title_type=feature,tv_movie";
+  var oExec = wsh.Run(cmd, 3);
+  return false;
+}
+
+function ShowPreview(title) {
+  HideContextMenu();
+  var cmd = "https://www.youtube.com/results?search_query=%22" + encodeURI(title) + "%22+movie+trailer";
+  var oExec = wsh.Run(cmd, 3);
+  return false;
+}
+
+function ShowPoster(image) {
+  HideContextMenu();
+  var cmd = "\"" + image + "\"";
+  var oExec = wsh.Run(cmd, 1, true);
+  return false;
+}
+
+function PlayMovie(movieName) {
+  HideContextMenu();
+  var cmd = "\"" + unescape(movieName) + "\"";
+  var oExec = wsh.Run(cmd, 1);
+  return false;
+}
+
+function DeleteMovie(image) {
+  HideContextMenu();
+  var imagepath = unescape(image.replace(/[/]/g, "\\")).substr(5);
+  var files = imagepath.substr(0, imagepath.lastIndexOf(".")) + ".*";
+
+  if (confirm("Delete \"" + files + "\" ?")) {
+    var cmd = "cmd /S/C del \"" + files + "\"";
+    var oExec = wsh.Run(cmd, 2, true);
+    location.reload();
+  }
+  return false;
+}
+
+function MoveMovie(image) {
+  HideContextMenu();
+  var imagepath = unescape(image.replace(/[/]/g, "\\")).substr(5);
+  var files = imagepath.substr(0, imagepath.lastIndexOf(".")) + ".*";
+  var folder = shell.BrowseForFolder(0, "Movies", 0x241, rootPath);
+  if (folder) {
+    var cmd = "cmd /S/C move \"" + files + "\" " + folder.Self.Path
+    var oExec = wsh.Run(cmd, 2, true);
+    setTimeout(function(){GetFileNames(currentPath)}, 100);
+  } 
+  return false;
+}
+
+
+function ShowMenu(txt) {
+  var node = document.getElementById("menu");
+  node.innerHTML = txt;
+}
+
+function ShowData(txt) {
+  var node = document.getElementById("data");
+  node.innerHTML = txt;
+}
+
+function Reload() {
+    location.reload(true);
+}
+
+function GetWindowSize() {
+  var w = document.body.clientWidth;
+  iw = ~~(w / 8.6);
+  ih = ~~((iw / 3) * 4.3);
+}
+
+Init();
+
+</script>
+</html>
