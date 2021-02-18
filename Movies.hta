@@ -1,6 +1,6 @@
 <HTML>
 <HEAD>
-<TITLE>Movies v2.1</TITLE>
+<TITLE>Movies v2.5</TITLE>
 <HTA:APPLICATION ID="oMovies"
   SHOWINTASKBAR="yes"
   SINGLEINSTANCE="yes"
@@ -17,7 +17,7 @@
   WINDOWSTATE="maximize"
   MAXIMIZEBUTTON="yes"
   MINIMIZEBUTTON="yes"
-  VERSION="2.1">
+  VERSION="2.5">
 <style>  
 
 body { margin:0; padding:0; background:#FFFFFF; font-family:"Segoe UI"; font-size:11pt; font-weight:900; cursor:default }
@@ -100,7 +100,7 @@ var iw;
 var ih;
 
 var home = "<a href='#'  name=\"menu\" class=\"menuNormal\" OnClick='ReStart()'>Home</a>";
-var menuData = "<a href='#' id=\"{0}\" name=\"menu\" class=\"menuNormal\">{1}</a>";
+var menuData = "<a href='#' id=\"{0}\" name=\"menu\" class=\"menuNormal\" OnClick=\"SelectFolder({0})\">{1}</a>";
 var imageData = "<img src=\"{0}\" width=\"{3}\" height=\"{4}\" Title=\"{1}\" OnClick=\"PlayMovie('{2}')\"/>\n";
 
 // -------------------------------------------------------
@@ -115,13 +115,6 @@ String.prototype.format = function() {
 };
 
 function Init() {
-  var menunode = document.getElementById("menu");
-  if (menunode.addEventListener) {                    // For all major browsers, except IE 8 and earlier
-    menunode.addEventListener("click", GetTheFiles);
-  } else if (menunode.attachEvent) {                  // For IE 8 and earlier versions
-    menunode.attachEvent("onclick", GetTheFiles);
-  }
-
   var datanode = document.getElementById("data");
   if (datanode.addEventListener) {                    // For all major browsers, except IE 8 and earlier
     datanode.addEventListener("contextmenu", ShowContextMenu);
@@ -136,33 +129,40 @@ function Init() {
   }
 
   GetWindowSize();
-  ShowData("Connecting...");
-  
+  GetRootPath();
+  //rootPath = "\\\\nas-dlink\\videos";
+  Start();
+}
+
+function Start() {
+  ShowData("Connecting to '" + rootPath + "'...");
   try {
-    GetRootPath();
-    rootFolder = fso.GetFolder(rootPath);
+    if (rootPath != "" && fso.FolderExists(rootPath)){
+      rootFolder = fso.GetFolder(rootPath);
+      if (rootFolder != null) {
+        setTimeout(function(){GetFolderNames()}, 10);
+      }
+    }
+    else {
+      ShowData("Folder '" + rootPath + "' not found.");
+      SelectRootFolder();
+      Start();
+    }
   }
   catch(err) {
-    SelectRootFolder();
+    alert("Start " + err.message);
+    ReStart();
   }
-  
-  setTimeout(function(){GetFolderNames()}, 10);
 }
 
 function ReStart() {
-
   rootPath = ""
   rootFolder = null;
-  
-  SelectRootFolder();
-  
-  if (rootFolder != null) {
-    setTimeout(function(){GetFolderNames()}, 10);
-  }
+  Start();
 }
 
 // -------------------------------------------------------
-// Get Root
+// Get Root Folder
 // -------------------------------------------------------
 
 function GetRootPath() {
@@ -171,8 +171,8 @@ function GetRootPath() {
   }
   catch(err) {
     alert("RegRead " + err.message);
-    rootPath = "\\\\NAS-DLINK\\Video";
-    SetRootPath();
+    //rootPath = "\\\\NAS-DLINK\\Video";
+    //SetRootPath();
   }
 }
 
@@ -185,20 +185,18 @@ function SetRootPath() {
   }
 }
 
-
 function SelectRootFolder() {
-  rootFolder = shell.BrowseForFolder(0, "Movies", 0x41);
+  rootFolder = shell.BrowseForFolder(0, "Movies", 0x0011, rootPath);
+  //alert("rootFolder " + rootFolder);
   if (rootFolder == null) {
     ShowMenu(home);
     ShowData("You must select a Home folder.");
+    //var result = wsh.Popup("Quit application ?", 0, "Movies Location", 32 + 4);
   } 
   else {
-    try {
-      rootPath = rootFolder.Self.Path;
+    rootPath = rootFolder.Self.Path;
+    if (fso.FolderExists(rootPath)){
       SetRootPath();
-    }
-    catch(err) {
-      alert("RegWrite " + err.message);
     }
   }
 }
@@ -210,15 +208,20 @@ function SelectRootFolder() {
 function GetFolderNames() {
   allFolders = new Array();
   index = 0;
-  
-  var colFolder = rootFolder.SubFolders ? rootFolder.SubFolders : rootFolder.Items();
-  var folders = new Enumerator(colFolder);
-  while (!folders.atEnd()) {
-    var folder = folders.item();
-    AddFolder(folder);
-    folders.moveNext();
+  try {
+    var colFolder = rootFolder.SubFolders ? rootFolder.SubFolders : rootFolder.Items();
+    var folders = new Enumerator(colFolder);
+    while (!folders.atEnd()) {
+      var folder = folders.item();
+      AddFolder(folder);
+      folders.moveNext();
+    }
+    ShowFolders();
   }
-  ShowFolders();
+  catch(err) {
+    alert("GetFolderNames " + err.message);
+    ReStart();
+  }
 }
 
 function AddFolder(folder) {
@@ -231,56 +234,47 @@ function AddFolder(folder) {
 }
 
 function ShowFolders() {
-
   allFolders.sort();
   menu = home;
-
   for (j = 0; j < index; j++) {
     var path = allFolders[j];
     var folderName = fso.GetFolder(path).Name;
     menu += menuData.format(j, folderName);
   }
   ShowMenu(menu);
-  
   var node = document.getElementById("0");
   node.click();
+}
+
+function SelectFolder(id) {
+  HiLight(id);
+  HideContextMenu();
+  ShowData("Reading files...");
+  currentPath = allFolders[id];
+  setTimeout(function(){GetFileNames(currentPath)}, 100);
 }
 
 // -------------------------------------------------------
 // Get Files
 // -------------------------------------------------------
 
-function HiLight(id) {
-  var elements = document.getElementsByName("menu");
-  for (i = 0; i < elements.length; i++) {
-    elements[i].className = "menuNormal"; 
-  }
-  document.getElementById(id).className = "menuActive";
-}
-
-function GetTheFiles(event) {
-  var targetElement = event.target || event.srcElement;
-  if (!targetElement.id || isNaN(targetElement.id)) return;
-
-  HiLight(targetElement.id);
-  
-  HideContextMenu();
-  ShowData("Reading files...");
-  currentPath = allFolders[targetElement.id];
-  setTimeout(function(){GetFileNames(currentPath)}, 100);
-}
-
 function GetFileNames(folderPath) {
   allFiles = new Array();
   index = 0;
-  var folder = fso.GetFolder(unescape(folderPath));
-  var files = new Enumerator(folder.files);
-  while (!files.atEnd()) {
-    var file = files.item();
-    AddFile(file);
-    files.moveNext();
+  try {
+    var folder = fso.GetFolder(unescape(folderPath));
+    var files = new Enumerator(folder.files);
+    while (!files.atEnd()) {
+      var file = files.item();
+      AddFile(file);
+      files.moveNext();
+    }
+    ShowFiles()
   }
-  ShowFiles()
+  catch(err) {
+    alert("GetFileNames " + err.message);
+    ReStart();
+  }
 }
 
 function AddFile(file) {
@@ -292,25 +286,20 @@ function AddFile(file) {
 }
 
 function ShowFiles() {
-  data = "";
   allFiles.sort();
-  
-  // loop array
+  data = "";
   for (j = 0; j < allFiles.length; j++) {
     var path = allFiles[j];
-    
     var movieName = escape(path);
     var title = fso.GetBaseName(path);
     var imageName = path.substr(0, path.lastIndexOf(".")) + ".jpg";
-    
     data += imageData.format(imageName, title, movieName, iw, ih);
   }
-  
   ShowData(data);
 }
 
 // -------------------------------------------------------
-// Other functions
+// Context Menu
 // -------------------------------------------------------
 
 function ShowContextMenu(event) {
@@ -358,6 +347,18 @@ function ShowPreview(title) {
   return false;
 }
 
+function Login() {
+  try {
+    
+    //net use \\networklocation\sharefolder password /USER:username
+    var cmd = "cmd /S/C net use " + rootPath + " * /USER:tv";
+    var oExec = wsh.Run(cmd, 1, true);
+  }
+  catch(err) {
+    alert("Login " + err.message);
+  }
+}
+
 function ShowPoster(image) {
   HideContextMenu();
   var cmd = "\"" + image + "\"";
@@ -378,9 +379,14 @@ function DeleteMovie(image) {
   var files = imagepath.substr(0, imagepath.lastIndexOf(".")) + ".*";
 
   if (confirm("Delete \"" + files + "\" ?")) {
-    var cmd = "cmd /S/C del \"" + files + "\"";
-    var oExec = wsh.Run(cmd, 2, true);
-    location.reload();
+    try {
+      var cmd = "cmd /S/C del \"" + files + "\"";
+      var oExec = wsh.Run(cmd, 2, true);
+      setTimeout(function(){GetFileNames(currentPath)}, 100);
+    }
+    catch(err) {
+      alert("delete command " + err.message);
+    }
   }
   return false;
 }
@@ -391,26 +397,39 @@ function MoveMovie(image) {
   var files = imagepath.substr(0, imagepath.lastIndexOf(".")) + ".*";
   var folder = shell.BrowseForFolder(0, "Movies", 0x241, rootPath);
   if (folder) {
-    var cmd = "cmd /S/C move \"" + files + "\" " + folder.Self.Path
-    var oExec = wsh.Run(cmd, 2, true);
-    setTimeout(function(){GetFileNames(currentPath)}, 100);
+    try {
+      var cmd = "cmd /S/C move \"" + files + "\" " + folder.Self.Path
+      var oExec = wsh.Run(cmd, 2, true);
+      setTimeout(function(){GetFileNames(currentPath)}, 100);
+    }
+    catch(err) {
+      alert("move command " + err.message);
+    }
   } 
   return false;
 }
 
+// -------------------------------------------------------
+// Other functions
+// -------------------------------------------------------
 
 function ShowMenu(txt) {
   var node = document.getElementById("menu");
   node.innerHTML = txt;
 }
 
+function HiLight(id) {
+  //alert("HiLight(id) " + id);
+  var elements = document.getElementsByName("menu");
+  for (i = 0; i < elements.length; i++) {
+    elements[i].className = "menuNormal"; 
+  }
+  document.getElementById(id).className = "menuActive";
+}
+
 function ShowData(txt) {
   var node = document.getElementById("data");
   node.innerHTML = txt;
-}
-
-function Reload() {
-    location.reload(true);
 }
 
 function GetWindowSize() {
