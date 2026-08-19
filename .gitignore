@@ -1,0 +1,11 @@
+# Generated runtime data
+cache.json
+cache.json.tmp
+
+# Local deployment and machine-specific files
+movies-nas-root-ca.crt
+NodeJS Server.xml
+.agents/
+
+# Unrelated local artifacts
+pdf_sort_manifest_completed_*.csv

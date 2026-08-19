@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Movies v3.0</title>
+  <style>
+    /* ── Reset & base ─────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0a;
+      --menu-bg:   #1a1a1a;
+      --menu-h:    42px;
+      --active-bg: #ffffff;
+      --active-fg: #111111;
+      --normal-fg: #cccccc;
+      --hover-fg:  #ffffff;
+      --border:    #333333;
+      --accent:    #e8c468;
+      --card-gap:  6px;
+      --img-border:#555555;
+      --img-hover: #ffffff;
+      --search-bg: #2a2a2a;
+      --search-fg: #ffffff;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--normal-fg);
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      font-size: 13px;
+      cursor: default;
+      user-select: none;
+    }
+
+    /* ── Layout ───────────────────────────── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* ── Menu bar ─────────────────────────── */
+    #menubar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: stretch;
+      height: var(--menu-h);
+      background: var(--menu-bg);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      white-space: nowrap;
+    }
+    #menubar::-webkit-scrollbar { display: none; }
+
+    #menubar a {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 14px;
+      color: var(--normal-fg);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      border-bottom: 3px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    #menubar a:hover  { color: var(--hover-fg); }
+    #menubar a.active {
+      color: var(--active-bg);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── Search bar ───────────────────────── */
+    #searchbar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: var(--menu-bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    #searchbar label {
+      font-size: 11px;
+      color: #888;
+      white-space: nowrap;
+    }
+
+    #searchInput {
+      flex: 1;
+      max-width: 320px;
+      height: 26px;
+      background: var(--search-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--search-fg);
+      padding: 0 10px;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #searchInput:focus { border-color: var(--accent); }
+    #searchInput::placeholder { color: #555; }
+
+    #searchBtn, #clearBtn {
+      height: 26px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #2a2a2a;
+      color: #ccc;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    #searchBtn:hover { background: var(--accent); color: #111; border-color: var(--accent); }
+    #clearBtn:hover  { background: #444; color: #fff; }
+
+    #searchCount {
+      font-size: 11px;
+      color: #666;
+      white-space: nowrap;
+    }
+
+    /* ── Content area ─────────────────────── */
+    #content {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      padding: var(--card-gap);
+      scrollbar-width: thin;
+      scrollbar-color: #444 var(--bg);
+    }
+    #content::-webkit-scrollbar       { width: 8px; }
+    #content::-webkit-scrollbar-track { background: var(--bg); }
+    #content::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+
+    /* ── Movie grid ───────────────────────── */
+    #grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--card-gap);
+    }
+
+    .movie-card {
+      position: relative;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+
+    .movie-card img {
+      display: block;
+      border: 2px solid var(--img-border);
+      border-radius: 3px;
+      transition: border-color 0.15s, transform 0.15s;
+      background: #111;
+    }
+    .movie-card:hover img {
+      border-color: var(--img-hover);
+      transform: scale(1.03);
+      z-index: 2;
+    }
+
+    .movie-card .badge {
+      position: absolute;
+      bottom: 4px;
+      left: 4px;
+      right: 4px;
+      background: rgba(0,0,0,0.75);
+      color: #eee;
+      font-size: 10px;
+      padding: 2px 4px;
+      border-radius: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transition: opacity 0.15s;
+      pointer-events: none;
+    }
+    .movie-card:hover .badge { opacity: 1; }
+
+    /* ── Refresh buttons ─────────────────────── */
+    #refreshBtn,
+    #quickRefreshBtn {
+      flex-shrink: 0;
+      height: 26px;
+      padding: 0 14px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #2a2a2a;
+      color: #aaa;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    #refreshBtn:hover,
+    #quickRefreshBtn:hover { background: var(--accent); color: #111; border-color: var(--accent); }
+    #refreshBtn.busy,
+    #quickRefreshBtn.busy  { color: var(--accent); pointer-events: none; }
+    #reportBtn {
+      flex-shrink: 0;
+      height: 26px; padding: 0 14px;
+      border: 1px solid #444; border-radius: 4px;
+      background: #2a2a2a; color: #aaa;
+      font-size: 11px; cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    #reportBtn:hover { background: #555; color: #fff; border-color: #666; }
+
+    /* ── Move dialog ──────────────────────────── */
+    #moveOverlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+    }
+    #moveOverlay.open { display: flex; }
+    #moveDialog {
+      background: #222;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 20px;
+      min-width: 280px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+    #moveDialog h3 {
+      color: #fff;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    #moveDialog .subtitle {
+      color: #888;
+      font-size: 11px;
+      margin-bottom: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 260px;
+    }
+    #moveSelect {
+      width: 100%;
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-size: 12px;
+      margin-bottom: 14px;
+      outline: none;
+    }
+    #moveSelect:focus { border-color: var(--accent); }
+    .move-btns { display: flex; gap: 8px; justify-content: flex-end; }
+    .move-btns button {
+      height: 28px; padding: 0 16px;
+      border-radius: 4px; border: 1px solid #555;
+      font-size: 12px; cursor: pointer;
+    }
+    #moveConfirm { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+    #moveConfirm:hover { background: #f0d070; }
+    #moveCancel  { background: #333; color: #ccc; }
+    #moveCancel:hover  { background: #444; color: #fff; }
+
+    /* ── Delete dialog ───────────────────────── */
+    #deleteOverlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+    }
+    #deleteOverlay.open { display: flex; }
+    #deleteDialog {
+      background: #222;
+      border: 1px solid #663333;
+      border-radius: 6px;
+      padding: 20px;
+      min-width: 300px;
+      max-width: 380px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+    #deleteDialog h3 { color: #ff6666; font-size: 13px; margin-bottom: 8px; }
+    #deleteDialog .del-title {
+      color: #fff; font-size: 13px; font-weight: 600;
+      margin-bottom: 10px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    #deleteDialog .del-warn {
+      color: #999; font-size: 11px; margin-bottom: 16px; line-height: 1.5;
+    }
+    .del-btns { display: flex; gap: 8px; justify-content: flex-end; }
+    .del-btns button {
+      height: 28px; padding: 0 16px;
+      border-radius: 4px; border: 1px solid #555;
+      font-size: 12px; cursor: pointer;
+    }
+    #deleteConfirm { background: #aa2222; color: #fff; border-color: #aa2222; font-weight: 600; }
+    #deleteConfirm:hover { background: #cc3333; }
+    #deleteCancel  { background: #333; color: #ccc; }
+    #deleteCancel:hover  { background: #444; color: #fff; }
+
+    /* ── Poster zoom overlay ─────────────────── */
+    #posterOverlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+    }
+    #posterOverlay.open { display: flex; }
+    #posterOverlay img {
+      max-width: 90vw;
+      max-height: 80vh;
+      border-radius: 4px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.8);
+      object-fit: contain;
+    }
+    #posterOverlay .poster-title {
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-align: center;
+      max-width: 90vw;
+    }
+    #posterOverlay .poster-actions {
+      display: flex; gap: 12px;
+    }
+    #posterPlayBtn {
+      height: 32px; padding: 0 24px;
+      background: var(--accent); color: #111;
+      border: none; border-radius: 4px;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #posterPlayBtn:hover { background: #f0d070; }
+    #posterCloseBtn {
+      height: 32px; padding: 0 24px;
+      background: #333; color: #ccc;
+      border: 1px solid #555; border-radius: 4px;
+      font-size: 13px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    #posterCloseBtn:hover { background: #444; color: #fff; }
+
+    /* ── Report overlay ───────────────────────── */
+    #reportOverlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+    }
+    #reportOverlay.open { display: flex; }
+    #reportDialog {
+      background: #1e1e1e;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 20px 24px;
+      min-width: 320px;
+      max-width: 420px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+      scrollbar-width: thin;
+      scrollbar-color: #444 #1e1e1e;
+    }
+    #reportDialog h3 {
+      color: #fff; font-size: 14px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 10px;
+    }
+    #reportDialog .report-row {
+      display: flex; justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      border-bottom: 1px solid #2a2a2a;
+      font-size: 12px;
+    }
+    #reportDialog .report-row:last-child { border-bottom: none; }
+    #reportDialog .report-cat  { color: #ccc; }
+    #reportDialog .report-count {
+      color: var(--accent);
+      font-weight: 600; font-size: 13px;
+      min-width: 36px; text-align: right;
+    }
+    #reportDialog .report-total {
+      margin-top: 12px; padding-top: 10px;
+      border-top: 2px solid #444;
+      display: flex; justify-content: space-between;
+      font-size: 13px; font-weight: 600;
+      color: #fff;
+    }
+    #reportDialog .report-meta {
+      margin-top: 10px;
+      font-size: 10px; color: #fff;
+      text-align: right;
+    }
+    #reportCloseBtn {
+      margin-top: 16px; width: 100%;
+      height: 30px; background: #333;
+      color: #ccc; border: 1px solid #555;
+      border-radius: 4px; font-size: 12px;
+      cursor: pointer;
+    }
+    #reportCloseBtn:hover { background: #444; color: #fff; }
+
+    /* ── Status / loading ─────────────────── */
+    #status {
+      margin-left: auto;
+      min-width: 0;
+      overflow: hidden;
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #666;
+      font-size: 12px;
+    }
+
+    /* ── Context menu ─────────────────────── */
+    #ctxmenu {
+      position: fixed;
+      display: none;
+      z-index: 9999;
+      background: #f5f5f5;
+      border: 1px solid #bbb;
+      border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      min-width: 180px;
+      overflow: hidden;
+    }
+    #ctxmenu .ctx-header {
+      padding: 8px 14px;
+      background: #e0e0e0;
+      font-weight: 700;
+      font-size: 12px;
+      color: #222;
+      border-bottom: 1px solid #ccc;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 240px;
+    }
+    #ctxmenu a {
+      display: block;
+      padding: 7px 14px;
+      color: #222;
+      text-decoration: none;
+      font-size: 12px;
+      transition: background 0.1s;
+    }
+    #ctxmenu a:hover { background: #d0e8ff; }
+    #ctxmenu .ctx-sep {
+      border: none;
+      border-top: 1px solid #ddd;
+      margin: 2px 0;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <nav id="menubar"></nav>
+
+  <!-- Move dialog -->
+  <div id="moveOverlay">
+    <div id="moveDialog">
+      <h3>Move to category</h3>
+      <div class="subtitle" id="moveTitle"></div>
+      <select id="moveSelect"></select>
+      <div class="move-btns">
+        <button id="moveCancel">Cancel</button>
+        <button id="moveConfirm">Move</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete confirmation dialog -->
+  <div id="deleteOverlay">
+    <div id="deleteDialog">
+      <h3>Delete movie ?</h3>
+      <div class="del-title" id="deleteTitle"></div>
+      <div class="del-warn">This will permanently delete the video and poster from the NAS. This cannot be undone.</div>
+      <div class="del-btns">
+        <button id="deleteCancel">Cancel</button>
+        <button id="deleteConfirm">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Poster zoom overlay -->
+  <div id="posterOverlay">
+    <div class="poster-title" id="posterZoomTitle"></div>
+    <img id="posterZoomImg" src="" alt="" />
+    <div class="poster-actions">
+      <button id="posterPlayBtn">Play</button>
+      <button id="posterCloseBtn">Close</button>
+    </div>
+  </div>
+
+  <!-- Report overlay -->
+  <div id="reportOverlay">
+    <div id="reportDialog">
+      <h3>Collection Report</h3>
+      <div id="reportContent"></div>
+      <button id="reportCloseBtn">Close</button>
+    </div>
+  </div>
+
+  <div id="searchbar">
+    <input id="searchInput" type="text" placeholder="Search movies…" autocomplete="off" spellcheck="false" />
+    <button id="searchBtn">Search</button>
+    <button id="clearBtn">✕</button>
+    <span id="searchCount"></span>
+    <button id="quickRefreshBtn">Quick</button>
+    <button id="refreshBtn">Refresh</button>
+    <button id="reportBtn">Report</button>
+    <div id="status">Connecting…</div>
+  </div>
+
+  <div id="content">
+    <div id="grid"></div>
+  </div>
+</div>
+
+<!-- Context menu -->
+<div id="ctxmenu">
+  <div class="ctx-header" id="ctx-title"></div>
+  <a href="#" id="ctx-play">Play</a>
+  <a href="#" id="ctx-imdb">Search IMDB</a>
+  <a href="#" id="ctx-trailer">Trailer on YouTube</a>
+  <hr class="ctx-sep" />
+  <a href="#" id="ctx-poster">View Poster</a>
+  <hr class="ctx-sep" />
+  <a href="#" id="ctx-move">Move to…</a>
+  <a href="#" id="ctx-delete">Delete…</a>
+</div>
+
+<script>
+"use strict";
+
+// ── State ────────────────────────────────────
+let _folders     = [];
+let _activeIdx   = -1;       // index in _folders, or -1 for search results
+let _cardW       = 0;
+let _cardH       = 0;
+let _ctxMovie    = null;     // { name, file, category }
+let _cachedFiles = {};       // category → [movies] for report
+let _cacheBuiltAt = null;    // timestamp from server
+let _selectionRequest = 0;
+
+// ── DOM refs ─────────────────────────────────
+const menubar     = document.getElementById("menubar");
+const grid        = document.getElementById("grid");
+const statusEl    = document.getElementById("status");
+const searchInput = document.getElementById("searchInput");
+const searchBtn   = document.getElementById("searchBtn");
+const clearBtn    = document.getElementById("clearBtn");
+const searchCount = document.getElementById("searchCount");
+const ctxmenu     = document.getElementById("ctxmenu");
+const refreshBtn  = document.getElementById("refreshBtn");
+const quickRefreshBtn = document.getElementById("quickRefreshBtn");
+const moveOverlay   = document.getElementById("moveOverlay");
+const moveTitle     = document.getElementById("moveTitle");
+const moveSelect    = document.getElementById("moveSelect");
+const deleteOverlay  = document.getElementById("deleteOverlay");
+const deleteTitle    = document.getElementById("deleteTitle");
+const posterOverlay  = document.getElementById("posterOverlay");
+const posterZoomImg  = document.getElementById("posterZoomImg");
+const posterZoomTitle= document.getElementById("posterZoomTitle");
+const reportOverlay  = document.getElementById("reportOverlay");
+const reportBtn      = document.getElementById("reportBtn");
+const ctxTitle    = document.getElementById("ctx-title");
+
+// ── Card size (matches original ~8.6 divisor) ─
+function calcCardSize() {
+  const w = document.body.clientWidth;
+  _cardW  = Math.floor(w / 8.6);
+  _cardH  = Math.floor((_cardW / 3) * 4.3);
+}
+
+// ── API helpers ───────────────────────────────
+async function apiFetch(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(r.statusText);
+  return r.json();
+}
+
+// ── Init ──────────────────────────────────────
+async function init() {
+  calcCardSize();
+  window.addEventListener("resize", () => { calcCardSize(); });
+
+  // Load folders from cache (no NAS access at startup)
+  try {
+    _folders = await apiFetch("/api/folders");
+  } catch (e) {
+    setStatus("❌ Cannot reach server: " + e.message);
+    return;
+  }
+
+  buildMenu();
+  if (_folders.length > 0) {
+    _activeIdx = 0;
+    selectFolder(0);
+  } else {
+    setStatus("No cache yet — click ↺ Refresh to build it.");
+  }
+
+  // Search events
+  searchBtn.addEventListener("click", doSearch);
+  clearBtn.addEventListener("click",  clearSearch);
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") doSearch();
+    if (e.key === "Escape") clearSearch();
+  });
+
+  // Refresh buttons
+  quickRefreshBtn.addEventListener("click", doQuickRefresh);
+  refreshBtn.addEventListener("click", doRefresh);
+
+  // Hide context menu on any click
+  document.addEventListener("click", hideCtx);
+  document.addEventListener("contextmenu", (e) => {
+    if (!e.target.closest(".movie-card")) hideCtx();
+  });
+}
+
+// ── Menu ──────────────────────────────────────
+function buildMenu() {
+  menubar.innerHTML = "";
+
+  // Category links
+  _folders.forEach((name, idx) => {
+    const a = document.createElement("a");
+    a.href = "#";
+    a.textContent = name;
+    a.id = "menu-" + idx;
+    a.addEventListener("click", (e) => { e.preventDefault(); selectFolder(idx); });
+    menubar.appendChild(a);
+  });
+}
+
+function setActiveMenu(idx) {
+  menubar.querySelectorAll("a").forEach(a => a.classList.remove("active"));
+  const target = document.getElementById("menu-" + idx);
+  if (target) target.classList.add("active");
+}
+
+// ── Folder selection ──────────────────────────
+async function selectFolder(idx) {
+  const requestId = ++_selectionRequest;
+  _activeIdx = idx;
+  searchInput.value = "";
+  searchCount.textContent = "";
+  setActiveMenu(idx);
+  setStatus("Loading…");
+  clearGrid();
+
+  try {
+    const files = await apiFetch("/api/files?category=" + encodeURIComponent(_folders[idx]));
+    if (requestId !== _selectionRequest) return;
+    _cachedFiles[_folders[idx]] = files; // store for report
+    renderMovies(files);
+  } catch (e) {
+    setStatus("Error loading files: " + e.message);
+  }
+}
+
+// ── Search ────────────────────────────────────
+async function doSearch() {
+  const q = searchInput.value.trim();
+  if (!q) return;
+
+  _activeIdx = -1;
+  setActiveMenu(-1);
+  menubar.querySelectorAll("a").forEach(a => a.classList.remove("active"));
+  setStatus("Searching…");
+  clearGrid();
+  searchCount.textContent = "";
+
+  try {
+    const results = await apiFetch("/api/search?q=" + encodeURIComponent(q));
+    searchCount.textContent = results.length
+      ? `${results.length} result${results.length > 1 ? "s" : ""}`
+      : "No results";
+    if (results.length === 0) {
+      setStatus(`No movies found matching "${q}".`);
+    } else {
+      renderMovies(results, true);
+    }
+  } catch (e) {
+    setStatus("Search error: " + e.message);
+  }
+}
+
+function clearSearch() {
+  searchInput.value = "";
+  searchCount.textContent = "";
+  selectFolder(_activeIdx >= 0 ? _activeIdx : 0);
+}
+
+// ── Refresh ──────────────────────────────────
+async function doRefresh() {
+  refreshBtn.classList.add("busy");
+  refreshBtn.textContent = "Refreshing…";
+  setStatus("Scanning NAS — this may take a moment…");
+  clearGrid();
+  try {
+    const result = await fetch("/api/refresh", { method: "POST" });
+    const data   = await result.json();
+    _folders = data.folders || [];
+    _cachedFiles = {};  // clear cached files on full refresh
+    _cacheBuiltAt = data.builtAt || null;
+    buildMenu();
+    if (_folders.length > 0) {
+      _activeIdx = 0;
+      await selectFolder(0);
+    } else {
+      setStatus("No folders found on NAS.");
+    }
+  } catch (e) {
+    setStatus("Refresh failed: " + e.message);
+  }
+  refreshBtn.classList.remove("busy");
+  refreshBtn.textContent = "Refresh";
+}
+
+async function doQuickRefresh() {
+  quickRefreshBtn.classList.add("busy");
+  quickRefreshBtn.textContent = "Quick...";
+  setStatus("Scanning NEW...");
+
+  try {
+    const result = await fetch("/api/refresh-quick", { method: "POST" });
+    const raw = await result.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (parseError) {
+      throw new Error(
+        result.status === 404
+          ? "server needs to be restarted to enable Quick refresh"
+          : raw || parseError.message
+      );
+    }
+
+    if (!result.ok || !data.ok) {
+      throw new Error(data.error || result.statusText);
+    }
+
+    _folders = data.folders || _folders;
+    _cachedFiles.NEW = data.files || [];
+    buildMenu();
+
+    const newIdx = _folders.indexOf("NEW");
+    if (_activeIdx === -1) {
+      searchCount.textContent = "";
+      searchInput.value = "";
+    }
+
+    if (newIdx >= 0) {
+      _activeIdx = newIdx;
+      setActiveMenu(newIdx);
+      renderMovies(_cachedFiles.NEW);
+    } else {
+      setStatus("NEW folder was not found.");
+    }
+  } catch (e) {
+    setStatus("Quick refresh failed: " + e.message);
+  }
+
+  quickRefreshBtn.classList.remove("busy");
+  quickRefreshBtn.textContent = "Quick";
+}
+
+// ── Render ────────────────────────────────────
+function renderMovies(movies, showCategory = false) {
+  clearGrid();
+  if (movies.length === 0) {
+    setStatus("No movies in this folder.");
+    return;
+  }
+  setStatus("");
+
+  const fragment = document.createDocumentFragment();
+
+  movies.forEach((m) => {
+    const card = document.createElement("div");
+    card.className = "movie-card";
+    card.dataset.category = m.category;
+    card.dataset.file = m.file;
+
+    const img = document.createElement("img");
+    img.width  = _cardW;
+    img.height = _cardH;
+    img.title  = m.name;
+    img.loading = "lazy";
+
+    // Poster served via API query params — safe for ALL characters
+    // (apostrophes, commas, accents, etc. in movie titles)
+    if (m.poster) {
+      const p = new URLSearchParams({ category: m.category, file: m.poster });
+      img.src = "/api/poster?" + p.toString();
+    }
+    // If no poster found at scan time, img stays blank (dark placeholder)
+
+    // Fallback: dark placeholder if poster missing
+    img.addEventListener("error", function () {
+      this.style.background = "#1c1c1c";
+      this.style.border = "2px solid #2a2a2a";
+      this.removeAttribute("src");
+    });
+
+    const badge = document.createElement("div");
+    badge.className = "badge";
+    badge.textContent = showCategory ? `[${m.category}] ${m.name}` : m.name;
+
+    // Left-click: play
+    card.addEventListener("click", (e) => {
+      e.preventDefault();
+      playMovie(m);
+    });
+
+    // Right-click: context menu
+    card.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showCtx(e, m);
+    });
+
+    card.appendChild(img);
+    card.appendChild(badge);
+    fragment.appendChild(card);
+  });
+
+  grid.appendChild(fragment);
+}
+
+function clearGrid() {
+  grid.innerHTML = "";
+}
+
+function setStatus(msg) {
+  statusEl.textContent = msg;
+}
+
+// ── Play ──────────────────────────────────────
+function playMovie(movie) {
+  const params = new URLSearchParams({
+    category: movie.category,
+    file:     movie.file,
+  });
+  const videoUrl = new URL("/api/video?" + params.toString(), window.location.origin).href;
+  window.location.href = "movies-vlc://play?url=" + encodeURIComponent(videoUrl);
+}
+
+// ── Context menu ──────────────────────────────
+function showCtx(e, movie) {
+  _ctxMovie = movie;
+  ctxTitle.textContent = movie.name;
+
+  // Position
+  let x = e.clientX, y = e.clientY;
+  ctxmenu.style.display = "block";
+  const mw = ctxmenu.offsetWidth, mh = ctxmenu.offsetHeight;
+  if (x + mw > window.innerWidth)  x = window.innerWidth  - mw - 4;
+  if (y + mh > window.innerHeight) y = window.innerHeight - mh - 4;
+  ctxmenu.style.left = x + "px";
+  ctxmenu.style.top  = y + "px";
+}
+
+function hideCtx() {
+  ctxmenu.style.display = "none";
+  _ctxMovie = null;
+}
+
+// Context menu actions
+document.getElementById("ctx-play").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (_ctxMovie) playMovie(_ctxMovie);
+  hideCtx();
+});
+
+document.getElementById("ctx-imdb").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (_ctxMovie) {
+    window.open(
+      "https://www.imdb.com/search/title/?title=" +
+      encodeURIComponent(_ctxMovie.name) +
+      "&title_type=feature,tv_movie",
+      "_blank"
+    );
+  }
+  hideCtx();
+});
+
+document.getElementById("ctx-trailer").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (_ctxMovie) {
+    window.open(
+      "https://www.youtube.com/results?search_query=" +
+      encodeURIComponent('"' + _ctxMovie.name + '" movie trailer'),
+      "_blank"
+    );
+  }
+  hideCtx();
+});
+
+document.getElementById("ctx-poster").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (!_ctxMovie) return;
+  const movie = _ctxMovie;
+  hideCtx();
+  openPosterZoom(movie);
+});
+
+// ── Move ─────────────────────────────────────
+document.getElementById("ctx-move").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (!_ctxMovie) return;
+  const movie = _ctxMovie;  // save before hideCtx() clears it
+  hideCtx();
+  openMoveDialog(movie);
+});
+
+function openMoveDialog(movie) {
+  moveTitle.textContent = movie.name;
+  moveSelect.innerHTML = "";
+  // Populate with all folders except current
+  _folders.forEach(f => {
+    if (f === movie.category) return;
+    const opt = document.createElement("option");
+    opt.value = f;
+    opt.textContent = f;
+    moveSelect.appendChild(opt);
+  });
+  moveOverlay.classList.add("open");
+
+  // Store movie reference for confirm
+  moveOverlay._movie = movie;
+}
+
+document.getElementById("moveCancel").addEventListener("click", () => {
+  moveOverlay.classList.remove("open");
+});
+
+document.getElementById("moveConfirm").addEventListener("click", async () => {
+  const movie  = moveOverlay._movie;
+  const target = moveSelect.value;
+  if (!movie || !target) return;
+
+  moveOverlay.classList.remove("open");
+  setStatus(`Moving "${movie.name}" to ${target}…`);
+
+  try {
+    const r = await fetch("/api/move", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category:       movie.category,
+        file:           movie.file,
+        poster:         movie.poster,
+        targetCategory: target,
+      }),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      // Remove card from current grid immediately
+      const cards = grid.querySelectorAll(".movie-card");
+      cards.forEach(card => {
+        if (card.dataset.category === movie.category && card.dataset.file === movie.file) card.remove();
+      });
+      setStatus(`"${movie.name}" moved to ${target}.`);
+      setTimeout(() => setStatus(""), 3000);
+    } else {
+      setStatus("Move failed: " + (data.errors || []).join(", "));
+    }
+  } catch (e) {
+    setStatus("Move error: " + e.message);
+  }
+});
+
+// Close move dialog on overlay click
+moveOverlay.addEventListener("click", (e) => {
+  if (e.target === moveOverlay) moveOverlay.classList.remove("open");
+});
+
+// ── Delete ───────────────────────────────────
+document.getElementById("ctx-delete").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (!_ctxMovie) return;
+  const movie = _ctxMovie;  // save before hideCtx() clears it
+  hideCtx();
+  openDeleteDialog(movie);
+});
+
+function openDeleteDialog(movie) {
+  deleteTitle.textContent = movie.name;
+  deleteOverlay.classList.add("open");
+  deleteOverlay._movie = movie;
+}
+
+document.getElementById("deleteCancel").addEventListener("click", () => {
+  deleteOverlay.classList.remove("open");
+});
+
+document.getElementById("deleteConfirm").addEventListener("click", async () => {
+  const movie = deleteOverlay._movie;
+  if (!movie) return;
+  deleteOverlay.classList.remove("open");
+  setStatus(`Deleting "${movie.name}"…`);
+
+  try {
+    const r = await fetch("/api/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category: movie.category,
+        file:     movie.file,
+        poster:   movie.poster,
+      }),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      // Remove card from grid immediately
+      grid.querySelectorAll(".movie-card").forEach(card => {
+        if (card.dataset.category === movie.category && card.dataset.file === movie.file) card.remove();
+      });
+      setStatus(`"${movie.name}" deleted.`);
+      setTimeout(() => setStatus(""), 3000);
+    } else {
+      setStatus("Delete failed: " + (data.errors || []).join(", "));
+    }
+  } catch (e) {
+    setStatus("Delete error: " + e.message);
+  }
+});
+
+deleteOverlay.addEventListener("click", (e) => {
+  if (e.target === deleteOverlay) deleteOverlay.classList.remove("open");
+});
+
+// ── Poster Zoom ──────────────────────────────
+function openPosterZoom(movie) {
+  posterZoomTitle.textContent = movie.name;
+  if (movie.poster) {
+    const p = new URLSearchParams({ category: movie.category, file: movie.poster });
+    posterZoomImg.src = "/api/poster?" + p.toString();
+    posterZoomImg.style.display = "";
+  } else {
+    posterZoomImg.style.display = "none";
+  }
+  posterOverlay._movie = movie;
+  posterOverlay.classList.add("open");
+}
+
+document.getElementById("posterCloseBtn").addEventListener("click", () => {
+  posterOverlay.classList.remove("open");
+  posterZoomImg.src = "";
+});
+
+document.getElementById("posterPlayBtn").addEventListener("click", () => {
+  if (posterOverlay._movie) playMovie(posterOverlay._movie);
+  posterOverlay.classList.remove("open");
+  posterZoomImg.src = "";
+});
+
+posterOverlay.addEventListener("click", (e) => {
+  if (e.target === posterOverlay) {
+    posterOverlay.classList.remove("open");
+    posterZoomImg.src = "";
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    posterOverlay.classList.remove("open");
+    posterZoomImg.src = "";
+    reportOverlay.classList.remove("open");
+    deleteOverlay.classList.remove("open");
+    moveOverlay.classList.remove("open");
+  }
+});
+
+// ── Report ────────────────────────────────────
+reportBtn.addEventListener("click", async () => {
+  const el = document.getElementById("reportContent");
+  el.innerHTML = "<div style='color:#666;font-size:12px;padding:8px 0'>Loading…</div>";
+  reportOverlay.classList.add("open");
+
+  try {
+    const data = await apiFetch("/api/report");
+    el.innerHTML = "";
+
+    data.rows.forEach(({ category, count }) => {
+      const row = document.createElement("div");
+      row.className = "report-row";
+      const categoryEl = document.createElement("span");
+      categoryEl.className = "report-cat";
+      categoryEl.textContent = category;
+      const countEl = document.createElement("span");
+      countEl.className = "report-count";
+      countEl.textContent = count;
+      row.append(categoryEl, countEl);
+      el.appendChild(row);
+    });
+
+    const totalRow = document.createElement("div");
+    totalRow.className = "report-total";
+    totalRow.innerHTML = `<span>Total</span><span>${data.total}</span>`;
+    el.appendChild(totalRow);
+
+    const meta = document.createElement("div");
+    meta.className = "report-meta";
+    meta.textContent = "Cache built: " + (data.builtAt ? new Date(data.builtAt).toLocaleString() : "unknown");
+    el.appendChild(meta);
+
+  } catch (e) {
+    el.innerHTML = `<div style='color:#cc4444;font-size:12px'>Error: ${e.message}</div>`;
+  }
+});
+
+document.getElementById("reportCloseBtn").addEventListener("click", () => {
+  reportOverlay.classList.remove("open");
+});
+
+reportOverlay.addEventListener("click", (e) => {
+  if (e.target === reportOverlay) reportOverlay.classList.remove("open");
+});
+
+// ── Start ─────────────────────────────────────
+init();
+</script>
+</body>
+</html>

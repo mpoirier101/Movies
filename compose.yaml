@@ -1,0 +1,29 @@
+services:
+  movies:
+    build: .
+    container_name: movies
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      MOVIES_ROOT: /video
+      MOVIES_CACHE_PATH: /data/cache.json
+      MOVIES_PID_PATH: /data/server.pid
+      MOVIES_BIND_ADDRESS: 0.0.0.0
+    volumes:
+      - /srv/dev-disk-by-uuid-0a5a52bb-5cb0-48f8-9419-fdebd3804c67/Video:/video:rw
+      - ./data:/data
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: movies-caddy
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy-data:/data
+      - ./caddy-config:/config
+    depends_on:
+      - movies

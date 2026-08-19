@@ -1,0 +1,15 @@
+{
+	default_sni 192.168.0.188
+}
+
+https://192.168.0.188 {
+    tls internal
+
+    handle /movies-root-ca.crt {
+        rewrite * /root.crt
+        root * /data/caddy/pki/authorities/local
+        file_server
+    }
+
+    reverse_proxy movies:3000
+}
