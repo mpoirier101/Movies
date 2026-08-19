@@ -8,6 +8,57 @@ No npm packages required — uses only Node.js built-ins.
 ## Requirements
 
 - [Node.js](https://nodejs.org/) v14 or newer
+- A folder containing your movie files and optional matching poster images
+- A current web browser
+
+---
+
+## Quick start
+
+### Install
+
+Clone the repository, then open the project folder:
+
+```bash
+git clone https://github.com/mpoirier101/Movies.git
+cd Movies
+```
+
+There are no npm packages to install.
+
+### Configure
+
+Tell the app where your Video folder is located. You can either set the
+`MOVIES_ROOT` environment variable before starting the server, or update the
+default path in the `CONFIG` block at the top of `server.js`.
+
+**Windows PowerShell:**
+
+```powershell
+$env:MOVIES_ROOT = "\\NAS\Video"
+node server.js
+```
+
+**Linux / macOS:**
+
+```bash
+MOVIES_ROOT="/mnt/nas/Video" node server.js
+```
+
+Replace the example path with the folder that contains your movie categories.
+
+### Use
+
+1. Start the app with `node server.js`, or use `start.bat` on Windows or
+   `./start.sh` on Linux and macOS.
+2. Open `http://localhost:3000` if it does not open automatically.
+3. Select a category and click **Refresh** the first time to build the movie
+   list.
+4. Use search to find a title, then click it to play. Right-click a movie for
+   actions such as Move, Delete, IMDb search, trailer search, and poster view.
+
+> **Important:** Delete permanently removes the movie and its matching poster.
+> Keep backups of your library.
 
 ---
 
